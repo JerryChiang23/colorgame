@@ -65,6 +65,7 @@
     let timerInterval;
     let startTime;
     let gameStarted = false;
+    let lastClickedIndex = -1;
 
     const centerX = 150;
     const centerY = 150;
@@ -119,15 +120,18 @@
           if (!gameStarted) {
             board[index] = getNextColor(board[index]);
           } else {
-            moveHistory.push([...board]);
-            board = makeMove(index, board);
-            updateUndoCount();
-            const maxSameColors = countSameColors();
-            const threshold = parseInt(document.getElementById('colorThreshold').value);
-            updateGameStatus(maxSameColors, threshold);
-            if (maxSameColors >= threshold) {
-              clearInterval(timerInterval);
-              gameStarted = false;
+            if (index !== lastClickedIndex) {
+              moveHistory.push([...board]);
+              board = makeMove(index, board);
+              lastClickedIndex = index;
+              updateUndoCount();
+              const maxSameColors = countSameColors();
+              const threshold = parseInt(document.getElementById('colorThreshold').value);
+              updateGameStatus(maxSameColors, threshold);
+              if (maxSameColors >= threshold) {
+                clearInterval(timerInterval);
+                gameStarted = false;
+              }
             }
           }
           renderBoard();
@@ -152,6 +156,7 @@
       gameStarted = true;
       moveHistory = [];
       undoLimit = 3;
+      lastClickedIndex = -1;
       updateUndoCount();
       initial = [...board];
       startTime = new Date();
@@ -164,6 +169,7 @@
       if (undoLimit > 0 && moveHistory.length > 0) {
         board = moveHistory.pop();
         undoLimit--;
+        lastClickedIndex = -1;
         updateUndoCount();
         renderBoard();
         updateGameStatus(countSameColors(), parseInt(document.getElementById('colorThreshold').value));
@@ -179,6 +185,7 @@
       board = [...initial];
       moveHistory = [];
       undoLimit = 3;
+      lastClickedIndex = -1;
       updateUndoCount();
       renderBoard();
       clearInterval(timerInterval);
