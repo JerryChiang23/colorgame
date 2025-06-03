@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Color Match Game - Hexagon Horizontal</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .board {
+      position: relative;
+      width: 380px;
+      height: 280px;
+      margin: 0 auto; /* Revert to original centering */
+    }
+    .circle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      position: absolute;
+      cursor: pointer;
+      border: 2px solid #555;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      color: white;
+      user-select: none;
+      box-sizing: border-box;
+      /* 移除圓圈內文字 */
+      font-size: 0;
+    }
+    .red {
+      background-color: red;
+    }
+    .blue {
+      background-color: blue;
+    }
+    .yellow {
+      background-color: goldenrod;
+    }
+    #steps {
+      margin-top: 20px;
+      white-space: pre-line;
+      max-width: fit-content; /* Allow width to fit content */
+      margin: 0 auto; /* Center the steps container */
+      display: flex; /* 使用 Flexbox */
+      flex-wrap: wrap; /* Allow wrapping if needed */
+      justify-content: center; /* Center content */
+      align-items: center; /* Center items vertically */
+      gap: 50px; /* Increase space between flex items */
+    }
+    #steps > div:first-child {
+      margin-left: 100px; /* Adjust left margin for alignment with subsequent steps */
+    }
+    .step-board {
+      position: relative;
+      width: 150px; /* Adjusted width for horizontal display */
+      height: 110px; /* Adjusted height */
+      margin: 0; /* Remove margin that might cause extra space */
+      flex-shrink: 0; /* Prevent shrinking */
+      overflow: hidden; /* Hide circles that might be positioned outside */
+    }
+    .step-circle {
+      width: 30px; /* Adjusted circle size */
+      height: 30px; /* Adjusted circle size */
+      border-radius: 50%;
+      position: absolute;
+      border: 1px solid #555;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 0; /* 取消步驟圈內數字 */
+      color: white;
+      user-select: none;
+      box-sizing: border-box;
+    }
+    .highlight {
+      border: 3px solid black !important;
+    }
+  </style>
+</head>
+<body>
+  <h1>Color Match Game</h1>
+  <label>目標相同顏色數量（最多6）:
+    <input type="number" id="threshold" min="1" max="6" value="4" />
+  </label>
+  <button onclick="prepareBoard()">設定初始顏色</button>
+  <button onclick="autoSolveSteps()">自動解題</button>
+
+  <div class="board" id="board"></div>
+  <div id="steps"></div>
+
+  <script>
+    const colors = ['red', 'blue', 'yellow'];
+    let board = Array(6).fill(null);
+    let selectingColor = true;
+    let initial = [];
+
+    const circleDiameter = 75;
+    const spacingFactor = 1.5;
+    const verticalSpacing = circleDiameter * Math.sqrt(3) / 3 * spacingFactor;
+    const horizontalOffsetTopBottom = circleDiameter * Math.sqrt(3) / 5 * spacingFactor;
+    let horizontalOffsetMiddle = circleDiameter / 2 * spacingFactor;
+    const extraHorizontalSpacing = 20; // Add extra spacing for left/right circles
+
+    const centerX = 190;
+    const centerY = 140;
+
+    // Hexagon point arrangement for main board
+    const positions = [
+      [centerX - horizontalOffsetTopBottom, centerY - verticalSpacing], // 0 Top-left
+      [centerX + horizontalOffsetTopBottom, centerY - verticalSpacing], // 1 Top-right
+      [centerX + horizontalOffsetMiddle + extraHorizontalSpacing, centerY],                // 2 Right
+      [centerX + horizontalOffsetTopBottom, centerY + verticalSpacing], // 3 Bottom-right
+      [centerX - horizontalOffsetTopBottom, centerY + verticalSpacing], // 4 Bottom-left
+      [centerX - horizontalOffsetMiddle - extraHorizontalSpacing, centerY],                // 5 Left
+    ].map(([x, y]) => [x - circleDiameter / 2, y - circleDiameter / 2]);
+
+    // For step boards, use a different center and scale
+    const stepBoardWidth = 150; // Must match .step-board width
+    const stepBoardHeight = 110; // Must match .step-board height
+    const stepBoardCenterX = stepBoardWidth / 2; // Center X for step board
+    const stepBoardCenterY = stepBoardHeight / 2; // Center Y for step board
+    const stepScale = 0.4; // Scale factor for step board positions
+
+    // Hexagon point arrangement for step board (scaled and centered)
+    const stepCircleDiameter = 30; // Must match .step-circle width/height
+    const stepSpacingFactor = 1.7; // Adjust spacing within step board
+    const stepVerticalSpacing = stepCircleDiameter * Math.sqrt(3) / 3 * stepSpacingFactor; /* Reverted calculation */
+    const stepHorizontalOffsetTopBottom = stepCircleDiameter * Math.sqrt(3) / 5 * stepSpacingFactor; /* Reverted calculation */
+    let stepHorizontalOffsetMiddle = stepCircleDiameter / 2 * stepSpacingFactor;
+    const stepExtraHorizontalSpacing = 10; // Extra horizontal spacing for middle circles in step board
+
+    const stepPositions = [
+      [stepBoardCenterX - stepHorizontalOffsetTopBottom, stepBoardCenterY - stepVerticalSpacing], // 0 Top-left
+      [stepBoardCenterX + stepHorizontalOffsetTopBottom, stepBoardCenterY - stepVerticalSpacing], // 1 Top-right
+      [stepBoardCenterX + stepHorizontalOffsetMiddle + stepExtraHorizontalSpacing, stepBoardCenterY],                // 2 Right
+      [stepBoardCenterX + stepHorizontalOffsetTopBottom, stepBoardCenterY + stepVerticalSpacing], // 3 Bottom-right
+      [stepBoardCenterX - stepHorizontalOffsetTopBottom, stepBoardCenterY + stepVerticalSpacing], // 4 Bottom-left
+      [stepBoardCenterX - stepHorizontalOffsetMiddle - stepExtraHorizontalSpacing, stepBoardCenterY],                // 5 Left
+    ].map(([x, y]) => [x - stepCircleDiameter / 2, y - stepCircleDiameter / 2]);
+
+    function getNextColor(color) {
+      const index = colors.indexOf(color);
+      return colors[(index + 1) % colors.length];
+    }
+
+    function renderBoard(state = board, containerId = 'board', isStep = false, highlightIndex = null) {
+      const boardDiv = document.getElementById(containerId);
+      boardDiv.innerHTML = '';
+      const currentPositions = isStep ? stepPositions : positions;
+      const currentCircleDiameter = isStep ? stepCircleDiameter : circleDiameter;
+
+      state.forEach((color, index) => {
+        const div = document.createElement('div');
+        div.className = isStep ? 'step-circle' : 'circle';
+        if (color) div.classList.add(color);
+        const [left, top] = currentPositions[index];
+        div.style.left = `${left}px`;
+        div.style.top = `${top}px`;
+        if (!isStep && containerId === 'board') {
+          div.onclick = () => {
+            if (selectingColor) {
+              const currentColor = board[index];
+              const nextColor = currentColor ? getNextColor(currentColor) : 'red';
+              board[index] = nextColor;
+              renderBoard();
+            }
+          };
+        }
+        if (isStep && index === highlightIndex) {
+          div.classList.add('highlight');
+        }
+        // 不設定文字內容，空白即可
+        div.textContent = '';
+        boardDiv.appendChild(div);
+      });
+    }
+
+    function makeMove(index, boardState) {
+      const newState = boardState.slice();
+      const left = (index + 5) % 6;
+      const right = (index + 1) % 6;
+      newState[left] = getNextColor(newState[left]);
+      newState[right] = getNextColor(newState[right]);
+      return newState;
+    }
+
+    function checkWin(state, color, threshold) {
+      return state.filter(c => c === color).length >= threshold;
+    }
+
+    function logStep(state, labelText = '', highlight = null) {
+      const stepsContainer = document.getElementById('steps');
+
+      // Create a container for label and board
+      const stepItem = document.createElement('div');
+      stepItem.style.display = 'flex'; /* Use flex to arrange label and board horizontally */
+      stepItem.style.flexDirection = 'column'; /* Stack label and board vertically within the item */
+      stepItem.style.alignItems = 'center'; /* Center content */
+      stepItem.style.marginRight = '20px'; /* Add space between step items */
+
+      const label = document.createElement('div');
+      label.textContent = labelText;
+      label.style.marginBottom = '20px'; /* Increase space below label */
+      stepItem.appendChild(label);
+
+      const stepDiv = document.createElement('div');
+      stepDiv.className = 'step-board';
+      stepDiv.id = `step-${labelText.replace(/[^a-zA-Z0-9]/g, '')}`; // Sanitize ID
+      stepItem.appendChild(stepDiv);
+
+      stepsContainer.appendChild(stepItem);
+
+      renderBoard(state, stepDiv.id, true, highlight);
+    }
+
+    function prepareBoard() {
+      board = Array(6).fill('red');
+      selectingColor = true;
+      document.getElementById('steps').innerText = '請點選每個格子設定初始顏色，設定完成後可點擊「自動解題」\n';
+      renderBoard();
+    }
+
+    async function autoSolveSteps() {
+      selectingColor = false;
+      const threshold = parseInt(document.getElementById('threshold').value);
+      initial = board.slice();
+      const maxDepth = 9;
+      const candidates = [];
+
+      for (let color of colors) {
+        const queue = [{ state: initial.slice(), path: [] }];
+        const seen = new Set();
+
+        while (queue.length > 0) {
+          const { state, path } = queue.shift();
+          const key = state.join(',');
+          if (seen.has(key)) continue;
+          seen.add(key);
+
+          if (checkWin(state, color, threshold)) {
+            candidates.push({ path, final: state.slice(), color });
+            break;
+          }
+
+          if (path.length >= maxDepth) continue;
+
+          for (let i = 0; i < 6; i++) {
+            if (path[path.length - 1] === i) continue;
+            const nextState = makeMove(i, state);
+            queue.push({ state: nextState, path: [...path, i] });
+          }
+        }
+      }
+
+      document.getElementById('steps').innerHTML = '';
+      logStep(initial, '初始狀態');
+
+      if (candidates.length === 0) {
+        const label = document.createElement('div');
+        label.textContent = '🚫 無法解出目標。';
+        document.getElementById('steps').appendChild(label);
+        return;
+      }
+
+      candidates.sort((a, b) => a.path.length - b.path.length);
+      const solution = candidates[0];
+
+      let currentBoard = initial.slice();
+      for (let i = 0; i < solution.path.length; i++) {
+        currentBoard = makeMove(solution.path[i], currentBoard);
+        logStep(currentBoard, `Step ${i + 1}`, solution.path[i]);
+      }
+    }
+
+    prepareBoard();
+  </script>
+</body>
+</html>

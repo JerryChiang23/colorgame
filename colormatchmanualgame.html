@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Color Match Manual Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .board {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      margin: 0 auto;
+    }
+    .circle {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      position: absolute;
+      cursor: pointer;
+      border: 2px solid #555;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      color: white;
+      font-size: 14px;
+    }
+    .red { background-color: red; }
+    .blue { background-color: blue; }
+    .yellow { background-color: goldenrod; }
+    #gameStatus {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Color Match Manual Game</h1>
+  <div id="controls">
+    <button onclick="randomizeColors()">隨機顏色</button>
+    <div style="margin: 10px 0;">
+      過關門檻: <input type="number" id="colorThreshold" min="2" max="6" value="3" style="width: 60px;">
+      個相同顏色
+    </div>
+    <button onclick="startGame()">開始</button>
+    <button onclick="undoMove()">返回一步</button>
+    <button onclick="resetGame()">重置</button>
+    <p>剩餘返回次數: <span id="undoCount">3</span></p>
+  </div>
+  <div id="timer">00:00:00</div>
+  <div class="board" id="board"></div>
+  <div id="gameStatus"></div>
+
+  <script>
+    const colors = ['red', 'blue', 'yellow'];
+    let board = Array(6).fill(null);
+    let initial = [];
+    let moveHistory = [];
+    let undoLimit = 3;
+    let timerInterval;
+    let startTime;
+    let gameStarted = false;
+
+    const centerX = 150;
+    const centerY = 150;
+    const radius = 110;
+    const positions = [
+      [centerX, centerY - radius],
+      [centerX + radius * Math.sin(Math.PI / 3), centerY - radius * Math.cos(Math.PI / 3)],
+      [centerX + radius * Math.sin(Math.PI / 3), centerY + radius * Math.cos(Math.PI / 3)],
+      [centerX, centerY + radius],
+      [centerX - radius * Math.sin(Math.PI / 3), centerY + radius * Math.cos(Math.PI / 3)],
+      [centerX - radius * Math.sin(Math.PI / 3), centerY - radius * Math.cos(Math.PI / 3)]
+    ].map(([x, y]) => [x - 30, y - 30]);
+
+    function getNextColor(color) {
+      return colors[(colors.indexOf(color) + 1) % colors.length];
+    }
+
+    function countSameColors() {
+      const colorCounts = {};
+      board.forEach(color => {
+        if (color) colorCounts[color] = (colorCounts[color] || 0) + 1;
+      });
+      return Math.max(...Object.values(colorCounts));
+    }
+
+    function makeMove(index, state) {
+      const newState = state.slice();
+      const left = (index + 5) % 6;
+      const right = (index + 1) % 6;
+      newState[left] = getNextColor(newState[left]);
+      newState[right] = getNextColor(newState[right]);
+      return newState;
+    }
+
+    function updateGameStatus(maxSameColors, threshold) {
+      const status = maxSameColors >= threshold
+        ? `恭喜過關！達成 ${maxSameColors} 個相同顏色`
+        : `遊戲進行中 - 當前最多 ${maxSameColors} 個相同顏色，目標: ${threshold} 個`;
+      document.getElementById('gameStatus').innerText = status;
+    }
+
+    function renderBoard() {
+      const boardDiv = document.getElementById('board');
+      boardDiv.innerHTML = '';
+      board.forEach((color, index) => {
+        const div = document.createElement('div');
+        div.className = `circle ${color || ''}`;
+        const [left, top] = positions[index];
+        div.style.left = `${left}px`;
+        div.style.top = `${top}px`;
+        div.onclick = () => {
+          if (!gameStarted) {
+            board[index] = getNextColor(board[index]);
+          } else {
+            moveHistory.push([...board]);
+            board = makeMove(index, board);
+            updateUndoCount();
+            const maxSameColors = countSameColors();
+            const threshold = parseInt(document.getElementById('colorThreshold').value);
+            updateGameStatus(maxSameColors, threshold);
+            if (maxSameColors >= threshold) {
+              clearInterval(timerInterval);
+              gameStarted = false;
+            }
+          }
+          renderBoard();
+        };
+        div.textContent = index + 1;
+        boardDiv.appendChild(div);
+      });
+    }
+
+    function randomizeColors() {
+      board = Array.from({ length: 6 }, () => colors[Math.floor(Math.random() * colors.length)]);
+      initial = [...board];
+      renderBoard();
+    }
+
+    function startGame() {
+      const threshold = parseInt(document.getElementById('colorThreshold').value);
+      if (isNaN(threshold) || threshold < 2 || threshold > 6) {
+        alert('請設定有效的過關門檻！(2-6個相同顏色)');
+        return;
+      }
+      gameStarted = true;
+      moveHistory = [];
+      undoLimit = 3;
+      updateUndoCount();
+      initial = [...board];
+      startTime = new Date();
+      clearInterval(timerInterval);
+      timerInterval = setInterval(updateTimer, 10);
+      updateGameStatus(countSameColors(), threshold);
+    }
+
+    function undoMove() {
+      if (undoLimit > 0 && moveHistory.length > 0) {
+        board = moveHistory.pop();
+        undoLimit--;
+        updateUndoCount();
+        renderBoard();
+        updateGameStatus(countSameColors(), parseInt(document.getElementById('colorThreshold').value));
+      }
+    }
+
+    function updateUndoCount() {
+      document.getElementById('undoCount').innerText = undoLimit;
+    }
+
+    function resetGame() {
+      gameStarted = false;
+      board = [...initial];
+      moveHistory = [];
+      undoLimit = 3;
+      updateUndoCount();
+      renderBoard();
+      clearInterval(timerInterval);
+      document.getElementById('timer').innerText = '00:00:00';
+      document.getElementById('gameStatus').innerText = '';
+    }
+
+    function updateTimer() {
+      const now = new Date();
+      const diff = now - startTime;
+      const minutes = String(Math.floor(diff / 60000)).padStart(2, '0');
+      const seconds = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+      const milliseconds = String(Math.floor((diff % 1000) / 10)).padStart(2, '0');
+      document.getElementById('timer').innerText = `${minutes}:${seconds}:${milliseconds}`;
+    }
+
+    randomizeColors();
+  </script>
+</body>
+</html>
